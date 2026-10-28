@@ -4,7 +4,7 @@ import { mongodbAdapter } from "@better-auth/mongo-adapter";
 
 // .env.local থেকে ডাটাবেজ কানেকশন নেয়া হচ্ছে
 const client = new MongoClient(process.env.MONGODB_URI);
-const db = client.db();
+const db = client.db('primeZoneDB');
 
 export const auth = betterAuth({
   database: mongodbAdapter(db, {
