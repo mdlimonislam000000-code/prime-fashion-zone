@@ -1,9 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, Upload, Image as ImageIcon, Trash2 } from 'lucide-react';
+import { X, Upload, Image as ImageIcon, Trash2, Plus } from 'lucide-react';
 import { uploadImageToCloudinary } from '@/utils/uploadImage';
-
 
 const ManProductAddModal = ({ 
   isAddModalOpen, 
@@ -18,6 +17,11 @@ const ManProductAddModal = ({
   const [detailsImagePreviews, setDetailsImagePreviews] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [uploading, setUploading] = useState(false);
+
+  // ডাইনামিক ডিটেইলস সেকশনের স্টেট (প্রতিটি সেকশনে heading এবং points থাকবে)
+  const [customSections, setCustomSections] = useState([
+    { heading: '', points: [''] }
+  ]);
 
   // Predefined category suggestions
   const categorySuggestions = [
@@ -44,7 +48,7 @@ const ManProductAddModal = ({
     setMainImagePreview(null);
   };
 
-  // Details Images Upload Handler (Multiple accumulation & Previews)
+  // Details Images Upload Handler
   const handleDetailsImagesChange = (e) => {
     const files = Array.from(e.target.files);
     if (files.length > 0) {
@@ -76,7 +80,47 @@ const ManProductAddModal = ({
     }
   };
 
-  // Form Submit Handler: Cloudinary Upload & Save to Database with Default Rating
+  // --- Dynamic Sections Handlers ---
+  const handleAddSection = () => {
+    if (customSections.length < 5) { // সর্বোচ্চ ৫টি সেকশন রাখা যেতে পারে
+      setCustomSections([...customSections, { heading: '', points: [''] }]);
+    }
+  };
+
+  const handleRemoveSection = (secIndex) => {
+    const updated = customSections.filter((_, i) => i !== secIndex);
+    setCustomSections(updated);
+  };
+
+  const handleHeadingChange = (secIndex, value) => {
+    const updated = [...customSections];
+    updated[secIndex].heading = value;
+    setCustomSections(updated);
+  };
+
+  const handlePointChange = (secIndex, pointIndex, value) => {
+    const updated = [...customSections];
+    updated[secIndex].points[pointIndex] = value;
+    setCustomSections(updated);
+  };
+
+  const handleAddPoint = (secIndex) => {
+    const updated = [...customSections];
+    if (updated[secIndex].points.length < 7) { // সর্বোচ্চ ৭টি বুলেট পয়েন্ট
+      updated[secIndex].points.push('');
+      setCustomSections(updated);
+    }
+  };
+
+  const handleRemovePoint = (secIndex, pointIndex) => {
+    const updated = [...customSections];
+    if (updated[secIndex].points.length > 1) { // কমপক্ষে ১টি পয়েন্ট থাকতেই হবে
+      updated[secIndex].points = updated[secIndex].points.filter((_, i) => i !== pointIndex);
+      setCustomSections(updated);
+    }
+  };
+
+  // Form Submit Handler
   const handleFormSubmitAndSave = async (e) => {
     e.preventDefault();
     setUploading(true);
@@ -87,21 +131,19 @@ const ManProductAddModal = ({
 
       // ১. মেইন ইমেজ ক্লাউডিনারিতে আপলোড
       if (formData.imageFile) {
-        console.log("Uploading main image to Cloudinary...");
         const uploadedMainUrl = await uploadImageToCloudinary(formData.imageFile);
         if (uploadedMainUrl) mainImageUrl = uploadedMainUrl;
       }
 
       // ২. গ্যালারি ইমেজগুলো ক্লাউডিনারিতে আপলোড
       if (formData.detailFiles && formData.detailFiles.length > 0) {
-        console.log("Uploading gallery images to Cloudinary...");
         for (let file of formData.detailFiles) {
           const url = await uploadImageToCloudinary(file);
           if (url) detailImageUrls.push(url);
         }
       }
 
-      // ৩. ডাটাবেজে পাঠানোর ফাইনাল অবজেক্ট (যেখানে ইউজার পেজের জন্য rating যোগ করা হয়েছে)
+      // ৩. ডাটাবেজে পাঠানোর ফাইনাল অবজেক্ট (productDetails অ্যারে সহ)
       const finalProductData = {
         name: formData.name,
         category: formData.category,
@@ -109,15 +151,13 @@ const ManProductAddModal = ({
         discountPrice: Number(formData.discountPrice || 0),
         stock: Number(formData.stock),
         sizes: formData.sizes || [],
-        image: mainImageUrl,         
+        image: mainImageUrl,        
         detailsPics: detailImageUrls, 
         description: formData.description || '',
-        rating: 5, // এটি ইউজার সাইডে রেটিং দেখানোর জন্য ডিফল্টভাবে সেভ হবে
+        productDetails: customSections.filter(sec => sec.heading.trim() !== ''), // খালি সেকশন বাদ দিয়ে অ্যারে আকারে সেভ হবে
+        rating: 5,
       };
 
-      console.log("Saving product to database...", finalProductData);
-
-      // ৪. ব্যাকএন্ড এপিআই-তে পাঠানো
       const response = await fetch('http://localhost:5000/api/man-collection', {
         method: 'POST',
         headers: {
@@ -136,6 +176,7 @@ const ManProductAddModal = ({
         setFormData({});
         setMainImagePreview(null);
         setDetailsImagePreviews([]);
+        setCustomSections([{ heading: '', points: [''] }]);
         
         if (onProductAdded) onProductAdded();
       } else {
@@ -298,7 +339,6 @@ const ManProductAddModal = ({
                     type="button"
                     onClick={handleRemoveMainImage}
                     className="absolute inset-0 bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                    title="Remove main image"
                   >
                     <Trash2 className="w-4 h-4 text-red-400" />
                   </button>
@@ -309,7 +349,7 @@ const ManProductAddModal = ({
 
           {/* Gallery Images Upload */}
           <div>
-            <label className="font-bold text-slate-700 block mb-1">Details/Gallery Images (Multiple Select & Deletable)</label>
+            <label className="font-bold text-slate-700 block mb-1">Details/Gallery Images</label>
             <label className="flex items-center justify-center gap-2 bg-slate-50 border border-dashed border-purple-300 hover:border-purple-500 p-3 rounded-xl cursor-pointer transition-all">
               <ImageIcon className="w-4 h-4 text-purple-600" />
               <span className="font-bold text-slate-600">Choose Gallery Images</span>
@@ -331,7 +371,6 @@ const ManProductAddModal = ({
                       type="button"
                       onClick={() => handleRemoveGalleryImage(idx)}
                       className="absolute inset-0 bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                      title="Remove image"
                     >
                       <Trash2 className="w-4 h-4 text-red-400" />
                     </button>
@@ -343,14 +382,94 @@ const ManProductAddModal = ({
 
           {/* Detailed Description */}
           <div>
-            <label className="font-bold text-slate-700 block mb-1">Product Detailed Description</label>
+            <label className="font-bold text-slate-700 block mb-1">Short Description</label>
             <textarea
-              rows="3"
-              placeholder="Write full specifications and details here..."
+              rows="2"
+              placeholder="Write a brief product description..."
               value={formData.description || ''}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-purple-500 font-medium resize-none"
             ></textarea>
+          </div>
+
+          {/* --- Dynamic Product Details Sections (Heading & Bullet Points) --- */}
+          <div className="space-y-3 pt-2 border-t border-slate-200">
+            <div className="flex items-center justify-between">
+              <label className="font-black text-slate-900 text-sm">Product Specification Sections</label>
+              <span className="text-[10px] text-slate-400">Max 5 sections (1-7 points each)</span>
+            </div>
+
+            {customSections.map((section, secIndex) => (
+              <div key={secIndex} className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-2.5 relative">
+                
+                {/* Section Header Input & Delete Section Button */}
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder={`Section Heading (e.g. Material & Care)`}
+                    value={section.heading}
+                    onChange={(e) => handleHeadingChange(secIndex, e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-xl p-2 font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                  {customSections.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveSection(secIndex)}
+                      className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors cursor-pointer shrink-0"
+                      title="Remove Section"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Bullet Points Inputs */}
+                <div className="space-y-2 pl-2 border-l-2 border-purple-200">
+                  <label className="font-bold text-[11px] text-slate-500 block">Bullet Points:</label>
+                  {section.points.map((point, pointIndex) => (
+                    <div key={pointIndex} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        placeholder={`Point ${pointIndex + 1}`}
+                        value={point}
+                        onChange={(e) => handlePointChange(secIndex, pointIndex, e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-lg p-1.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      />
+                      {section.points.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemovePoint(secIndex, pointIndex)}
+                          className="text-slate-400 hover:text-red-500 p-1 cursor-pointer"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+
+                  {section.points.length < 7 && (
+                    <button
+                      type="button"
+                      onClick={() => handleAddPoint(secIndex)}
+                      className="text-purple-600 hover:text-purple-700 font-bold text-[11px] flex items-center gap-1 mt-1 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Add Bullet Point
+                    </button>
+                  )}
+                </div>
+
+              </div>
+            ))}
+
+            {customSections.length < 5 && (
+              <button
+                type="button"
+                onClick={handleAddSection}
+                className="w-full py-2.5 border-2 border-dashed border-purple-300 hover:border-purple-500 bg-purple-50/50 text-purple-700 font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+              >
+                <Plus className="w-4 h-4" /> Add New Details Section
+              </button>
+            )}
           </div>
 
           {/* Actions */}

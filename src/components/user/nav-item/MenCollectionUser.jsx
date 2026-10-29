@@ -9,7 +9,8 @@ import {
   Eye, 
   Loader2,
   ArrowUpDown,
-  Zap
+  Zap,
+  Check
 } from 'lucide-react';
 
 // আলাদা করা মোডাল কম্পোনেন্টগুলো ইম্পোর্ট করা হলো
@@ -25,12 +26,18 @@ const ManCollectionUser = ({ currentUser }) => {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [sortOption, setSortOption] = useState('newest');
   
-  const [wishlist, setWishlist] = useState([]);
+  // Wishlist & Cart Product IDs State
+  const [wishlistProductIds, setWishlistProductIds] = useState([]);
+  const [cartProductIds, setCartProductIds] = useState([]);
+  
   const [quickViewProduct, setQuickViewProduct] = useState(null);
   
   // Buy Now Modal States
   const [buyModalOpen, setBuyModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
+
+  // ইউজারের ইউনিক আইডি (currentUser থেকে নেওয়া)
+  const userId = currentUser?.id || currentUser?._id;
 
   // ব্যাকএন্ড API থেকে প্রোডাক্ট ফেচ করা
   const fetchProducts = async () => {
@@ -54,15 +61,129 @@ const ManCollectionUser = ({ currentUser }) => {
     }
   };
 
+  // ইউজারের উইশলিস্ট প্রোডাক্টের আইডিগুলো ফেচ করা
+  const fetchWishlistIds = async () => {
+    if (!userId) return;
+    try {
+      const res = await fetch(`http://localhost:5000/api/wishlist/${userId}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.wishlist)) {
+        const ids = data.wishlist.map(item => item.productId.toString());
+        setWishlistProductIds(ids);
+      }
+    } catch (error) {
+      console.error("Error fetching wishlist IDs:", error);
+    }
+  };
+
+  // ইউজারের কার্ট প্রোডাক্টের আইডিগুলো ফেচ করা
+  const fetchCartIds = async () => {
+    if (!userId) return;
+    try {
+      const res = await fetch(`http://localhost:5000/api/cart/${userId}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.cart)) {
+        const ids = data.cart.map(item => item.productId.toString());
+        setCartProductIds(ids);
+      }
+    } catch (error) {
+      console.error("Error fetching cart IDs:", error);
+    }
+  };
+
   useEffect(() => {
     fetchProducts();
   }, [selectedCategory, searchQuery, sortOption]);
 
-  const toggleWishlist = (productId) => {
-    if (wishlist.includes(productId)) {
-      setWishlist(wishlist.filter(id => id !== productId));
-    } else {
-      setWishlist([...wishlist, productId]);
+  useEffect(() => {
+    if (userId) {
+      fetchWishlistIds();
+      fetchCartIds();
+    }
+  }, [userId]);
+
+  // লাভ (Wishlist) টগল বাটন হ্যান্ডলার
+  const toggleWishlist = async (product) => {
+    if (!userId) {
+      alert("Please log in to add products to your wishlist!");
+      return;
+    }
+
+    const productId = product._id || product.id;
+
+    try {
+      const res = await fetch('http://localhost:5000/api/wishlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: userId,
+          product: product
+        })
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        if (data.action === 'added') {
+          setWishlistProductIds(prev => [...prev, productId.toString()]);
+        } else if (data.action === 'removed') {
+          setWishlistProductIds(prev => prev.filter(id => id !== productId.toString()));
+        }
+      } else {
+        alert(data.error || "Failed to update wishlist");
+      }
+    } catch (error) {
+      console.error("Wishlist toggle error:", error);
+    }
+  };
+
+  // ----------------------------------------------------
+  // ADD TO BAG HANDLER (কনসোলে ডেটা প্রিন্ট ও ব্যাকএন্ডে পাঠানো)
+  // ----------------------------------------------------
+  const handleAddToCart = async (product) => {
+    console.log("=== Add to Bag Triggered ===");
+    console.log("Current User Object:", currentUser);
+    console.log("Selected Product Object:", product);
+
+    if (!currentUser || (!currentUser._id && !currentUser.id)) {
+      alert("Please log in to add products to your bag!");
+      return;
+    }
+
+    const productId = product._id || product.id;
+    const selectedSize = product.sizes?.[0] || 'M';
+
+    const requestBody = {
+      user: currentUser,
+      product: product,
+      selectedSize: selectedSize
+    };
+
+    console.log("Payload Sending to Backend (/api/cart):", requestBody);
+
+    try {
+      const res = await fetch('http://localhost:5000/api/cart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody)
+      });
+
+      const data = await res.json();
+      console.log("Backend Response:", data);
+
+      if (res.ok) {
+        setCartProductIds(prev => {
+          if (!prev.includes(productId.toString())) {
+            return [...prev, productId.toString()];
+          }
+          return prev;
+        });
+      } else {
+        alert(data.error || "Failed to add to bag");
+      }
+    } catch (error) {
+      console.error("Add to cart error:", error);
+      alert("Something went wrong!");
     }
   };
 
@@ -74,7 +195,7 @@ const ManCollectionUser = ({ currentUser }) => {
   const handleOpenBuyModal = (product) => {
     setSelectedProduct(product);
     setBuyModalOpen(true);
-    setQuickViewProduct(null); // কুইক ভিউ খোলা থাকলে তা বন্ধ করে দিবে
+    setQuickViewProduct(null); 
   };
 
   const categories = ['All', 'Formal & Casual', 'Winter Collection', 'Streetwear', 'Casual Wear'];
@@ -147,10 +268,16 @@ const ManCollectionUser = ({ currentUser }) => {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
             {products.map((product) => {
               const productId = product._id;
-              const isWishlisted = wishlist.includes(productId);
+              const isWishlisted = wishlistProductIds.includes(productId.toString());
+              const isInCart = cartProductIds.includes(productId.toString());
+
               const discountPercent = product.discountPrice > product.price 
                 ? Math.round(((product.discountPrice - product.price) / product.discountPrice) * 100) 
                 : 0;
+
+              const availableSizes = product.sizes && product.sizes.length > 0 
+                ? product.sizes 
+                : ['S', 'M', 'L', 'XL', 'XXL'];
 
               return (
                 <div key={productId} className="group bg-white rounded-2xl sm:rounded-3xl overflow-hidden border border-slate-200/80 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between">
@@ -167,7 +294,13 @@ const ManCollectionUser = ({ currentUser }) => {
                       {product.category}
                     </span>
 
-                    <button onClick={() => toggleWishlist(productId)} className={`absolute top-2 right-2 sm:top-3 sm:right-3 p-2 rounded-full backdrop-blur-md transition-all shadow-sm cursor-pointer ${isWishlisted ? 'bg-red-500 text-white' : 'bg-white/80 text-slate-700 hover:text-red-500'}`}>
+                    {/* Wishlist / Love Button */}
+                    <button 
+                      onClick={() => toggleWishlist(product)} 
+                      className={`absolute top-2 right-2 sm:top-3 sm:right-3 p-2 rounded-full backdrop-blur-md transition-all shadow-sm cursor-pointer ${
+                        isWishlisted ? 'bg-red-500 text-white' : 'bg-white/80 text-slate-700 hover:text-red-500'
+                      }`}
+                    >
                       <Heart className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isWishlisted ? 'fill-white' : ''}`} />
                     </button>
 
@@ -189,24 +322,51 @@ const ManCollectionUser = ({ currentUser }) => {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 mt-2">
-                        <span className="text-xs sm:text-base font-black text-purple-600">
-                          ৳{Number(product.price).toLocaleString()}
-                        </span>
-                        {product.discountPrice > product.price && (
-                          <span className="text-[10px] text-slate-400 line-through font-bold">
-                            ৳{Number(product.discountPrice).toLocaleString()}
+                      {/* --- প্রাইস এবং অ্যাভেইলেবল সাইজ পাশাপাশি সেকশন --- */}
+                      <div className="flex items-center justify-between gap-2 mt-2">
+                        {/* Price Area */}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-xs sm:text-base font-black text-purple-600">
+                            ৳{Number(product.price).toLocaleString()}
                           </span>
-                        )}
+                          {product.discountPrice > product.price && (
+                            <span className="text-[10px] text-slate-400 line-through font-bold">
+                              ৳{Number(product.discountPrice).toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Available Sizes (Pasapasi) */}
+                        <div className="flex items-center gap-1 flex-wrap justify-end">
+                          {availableSizes.map((sz) => (
+                            <span 
+                              key={sz} 
+                              className="text-[9px] font-black text-slate-700 bg-slate-100 border border-slate-200/80 px-1.5 py-0.5 rounded-md uppercase"
+                            >
+                              {sz}
+                            </span>
+                          ))}
+                        </div>
                       </div>
+
                     </div>
 
                     <div className="mt-3 pt-3 border-t border-slate-100 grid grid-cols-2 gap-1.5">
-                      <button onClick={() => alert(`Added ${product.name} to bag!`)} className="flex items-center justify-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-900 font-bold text-[10px] sm:text-xs py-2 rounded-xl transition-all cursor-pointer">
-                        <ShoppingBag className="w-3.5 h-3.5" />
-                        <span>Add Bag</span>
+                      <button 
+                        onClick={() => handleAddToCart(product)} 
+                        className={`flex items-center justify-center gap-1 font-bold text-[10px] sm:text-xs py-2 rounded-xl transition-all cursor-pointer ${
+                          isInCart 
+                            ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm' 
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-900'
+                        }`}
+                      >
+                        {isInCart ? <Check className="w-3.5 h-3.5" /> : <ShoppingBag className="w-3.5 h-3.5" />}
+                        <span>{isInCart ? 'Added in Bag' : 'Add Bag'}</span>
                       </button>
-                      <button onClick={() => handleOpenBuyModal(product)} className="flex items-center justify-center gap-1 bg-purple-600 hover:bg-purple-700 text-white font-bold text-[10px] sm:text-xs py-2 rounded-xl transition-all shadow-sm cursor-pointer">
+                      <button 
+                        onClick={() => handleOpenBuyModal(product)} 
+                        className="flex items-center justify-center gap-1 bg-purple-600 hover:bg-purple-700 text-white font-bold text-[10px] sm:text-xs py-2 rounded-xl transition-all shadow-sm cursor-pointer"
+                      >
                         <Zap className="w-3.5 h-3.5 fill-white" />
                         <span>Buy Now</span>
                       </button>
