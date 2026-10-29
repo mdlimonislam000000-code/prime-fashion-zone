@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Upload, Image as ImageIcon, Trash2, Plus, Loader2 } from 'lucide-react';
 import { uploadImageToCloudinary } from '@/utils/uploadImage';
 
-const ManEditProductAdmin = ({ 
+const AdminEditProductMan = ({ 
   isEditModalOpen, 
   setIsEditModalOpen, 
   productToEdit, 
@@ -47,17 +47,22 @@ const ManEditProductAdmin = ({
         price: productToEdit.price || '',
         discountPrice: productToEdit.discountPrice || '',
         stock: productToEdit.stock || '',
-        sizes: productToEdit.sizes || [],
+        sizes: [...(productToEdit.sizes || [])],
         description: productToEdit.description || '',
         image: productToEdit.image || '',
-        detailsPics: productToEdit.detailsPics || []
+        detailsPics: [...(productToEdit.detailsPics || [])]
       });
 
       setMainImagePreview(productToEdit.image || null);
-      setDetailsImagePreviews(productToEdit.detailsPics || []);
+      setDetailsImagePreviews([...(productToEdit.detailsPics || [])]);
 
+      // Safe deep copy to prevent React internal state mutation crash
       if (productToEdit.productDetails && productToEdit.productDetails.length > 0) {
-        setCustomSections(productToEdit.productDetails);
+        const clonedSections = productToEdit.productDetails.map(sec => ({
+          heading: sec.heading || '',
+          points: [...(sec.points || [''])]
+        }));
+        setCustomSections(clonedSections);
       } else {
         setCustomSections([{ heading: '', points: [''] }]);
       }
@@ -118,31 +123,42 @@ const ManEditProductAdmin = ({
   };
 
   const handleHeadingChange = (secIndex, value) => {
-    const updated = [...customSections];
-    updated[secIndex].heading = value;
+    const updated = customSections.map((sec, i) => 
+      i === secIndex ? { ...sec, heading: value } : sec
+    );
     setCustomSections(updated);
   };
 
   const handlePointChange = (secIndex, pointIndex, value) => {
-    const updated = [...customSections];
-    updated[secIndex].points[pointIndex] = value;
+    const updated = customSections.map((sec, i) => {
+      if (i === secIndex) {
+        const newPoints = [...sec.points];
+        newPoints[pointIndex] = value;
+        return { ...sec, points: newPoints };
+      }
+      return sec;
+    });
     setCustomSections(updated);
   };
 
   const handleAddPoint = (secIndex) => {
-    const updated = [...customSections];
-    if (updated[secIndex].points.length < 7) {
-      updated[secIndex].points.push('');
-      setCustomSections(updated);
-    }
+    const updated = customSections.map((sec, i) => {
+      if (i === secIndex && sec.points.length < 7) {
+        return { ...sec, points: [...sec.points, ''] };
+      }
+      return sec;
+    });
+    setCustomSections(updated);
   };
 
   const handleRemovePoint = (secIndex, pointIndex) => {
-    const updated = [...customSections];
-    if (updated[secIndex].points.length > 1) {
-      updated[secIndex].points = updated[secIndex].points.filter((_, i) => i !== pointIndex);
-      setCustomSections(updated);
-    }
+    const updated = customSections.map((sec, i) => {
+      if (i === secIndex && sec.points.length > 1) {
+        return { ...sec, points: sec.points.filter((_, pIdx) => pIdx !== pointIndex) };
+      }
+      return sec;
+    });
+    setCustomSections(updated);
   };
 
   const handleUpdateProduct = async (e) => {
@@ -477,4 +493,4 @@ const ManEditProductAdmin = ({
   );
 };
 
-export default ManEditProductAdmin;
+export default AdminEditProductMan;

@@ -2,43 +2,51 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  ShoppingBag, 
-  Heart, 
-  Star, 
+  Plus, 
   Search, 
-  Eye, 
-  Loader2,
-  ArrowUpDown,
-  Zap,
-  Check
+  Edit3, 
+  Trash2, 
+  Loader2, 
+  Star, 
+  PackageCheck, 
+  Eye,
+  ArrowUpDown
 } from 'lucide-react';
 
+import ManProductAddModal from './ManProductAddModal';
+import AdminEditProductMan from './AdminEditProductMan';
 import MenDetailsButtonModal from '@/components/user/nav-item/MenDetailsButtonModal';
-import MenOrderButtonModal from '@/components/user/nav-item/MenOrderButtonModal';
 
-const ManCollectionUser = ({ currentUser }) => {
+const ManCollectionAdmin = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Filters & Search States
   const [searchQuery, setSearchQuery] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [sortOption, setSortOption] = useState('newest');
-  
-  // Wishlist & Cart Product IDs State
-  const [wishlistProductIds, setWishlistProductIds] = useState([]);
-  const [cartProductIds, setCartProductIds] = useState([]);
-  
+
+  // Modals States
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [productToEdit, setProductToEdit] = useState(null);
   const [quickViewProduct, setQuickViewProduct] = useState(null);
-  
-  // Buy Now Modal States
-  const [buyModalOpen, setBuyModalOpen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState(null);
 
-  // ইউজারের ইউনিক আইডি (currentUser থেকে নেওয়া)
-  const userId = currentUser?._id || currentUser?.id;
+  // Form State for Adding Product
+  const [formData, setFormData] = useState({
+    name: '',
+    category: '',
+    price: '',
+    discountPrice: '',
+    stock: '',
+    sizes: [],
+    description: '',
+    image: '',
+    detailsPics: []
+  });
 
-  // ব্যাকএন্ড API থেকে প্রোডাক্ট ফেচ করা
+  // Fetch Men Products
   const fetchProducts = async () => {
     try {
       setLoading(true);
@@ -49,44 +57,14 @@ const ManCollectionUser = ({ currentUser }) => {
 
       const res = await fetch(`http://localhost:5000/api/man-collection?${queryParams.toString()}`);
       const data = await res.json();
-      
+
       if (Array.isArray(data)) {
         setProducts(data);
       }
     } catch (error) {
-      console.error("Error fetching products:", error);
+      console.error("Error fetching men products:", error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  // ইউজারের উইশলিস্ট প্রোডাক্টের আইডিগুলো ফেচ করা
-  const fetchWishlistIds = async () => {
-    if (!userId) return;
-    try {
-      const res = await fetch(`http://localhost:5000/api/wishlist/${userId}`);
-      const data = await res.json();
-      if (data.success && Array.isArray(data.wishlist)) {
-        const ids = data.wishlist.map(item => item.productId.toString());
-        setWishlistProductIds(ids);
-      }
-    } catch (error) {
-      console.error("Error fetching wishlist IDs:", error);
-    }
-  };
-
-  // ইউজারের কার্ট (Bag) প্রোডাক্টের আইডিগুলো ফেচ করা
-  const fetchCartIds = async () => {
-    if (!userId) return;
-    try {
-      const res = await fetch(`http://localhost:5000/api/cart/${userId}`);
-      const data = await res.json();
-      if (data.success && Array.isArray(data.cart)) {
-        const ids = data.cart.map(item => item.productId.toString());
-        setCartProductIds(ids);
-      }
-    } catch (error) {
-      console.error("Error fetching cart IDs:", error);
     }
   };
 
@@ -94,106 +72,77 @@ const ManCollectionUser = ({ currentUser }) => {
     fetchProducts();
   }, [selectedCategory, searchQuery, sortOption]);
 
-  useEffect(() => {
-    if (userId) {
-      fetchWishlistIds();
-      fetchCartIds();
-    }
-  }, [userId]);
-
-  // লাভ (Wishlist) টগল বাটন হ্যান্ডলার - ডাটাবেজে সেভ বা রিমুভ করা
-  const toggleWishlist = async (product) => {
-    if (!userId) {
-      alert("Please log in to add products to your wishlist!");
-      return;
-    }
-
-    const productId = product._id || product.id;
-
-    try {
-      const res = await fetch('http://localhost:5000/api/wishlist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: userId,
-          product: product
-        })
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        if (data.action === 'added') {
-          setWishlistProductIds(prev => [...prev, productId.toString()]);
-        } else if (data.action === 'removed') {
-          setWishlistProductIds(prev => prev.filter(id => id !== productId.toString()));
-        }
-      } else {
-        alert(data.error || "Failed to update wishlist");
-      }
-    } catch (error) {
-      console.error("Wishlist toggle error:", error);
-    }
-  };
-
-  // Add to Bag Handler - ইউজারের তথ্য এবং প্রোডাক্ট ব্যাকএন্ডে পাঠানো
-  const handleAddToCart = async (product) => {
-    if (!currentUser || (!currentUser._id && !currentUser.id)) {
-      alert("Please log in to add products to your bag!");
-      return;
-    }
-
-    const productId = product._id || product.id;
-
-    try {
-      const res = await fetch('http://localhost:5000/api/cart', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user: currentUser, // ইউজারের আইডি, নাম, ইমেইল, ছবি ইত্যাদি
-          product: product,  // প্রোডাক্টের সমস্ত ডেটা
-          selectedSize: product.sizes?.[0] || 'M'
-        })
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        // সফলভাবে কার্টে যোগ হলে স্টেটে আইডি যুক্ত করা যাতে ইনস্ট্যান্ট "Added in Bag" দেখায়
-        setCartProductIds(prev => {
-          if (!prev.includes(productId.toString())) {
-            return [...prev, productId.toString()];
-          }
-          return prev;
-        });
-      } else {
-        alert(data.error || "Failed to add to bag");
-      }
-    } catch (error) {
-      console.error("Add to cart error:", error);
-      alert("Something went wrong!");
-    }
-  };
-
   const handleSearch = (e) => {
     e.preventDefault();
     setSearchQuery(searchInput);
   };
 
-  const handleOpenBuyModal = (product) => {
-    setSelectedProduct(product);
-    setBuyModalOpen(true);
-    setQuickViewProduct(null); 
+  // Delete Product Handler
+  const handleDeleteProduct = async (productId) => {
+    if (!window.confirm("Are you sure you want to delete this product?")) return;
+
+    try {
+      const res = await fetch(`http://localhost:5000/api/man-collection/${productId}`, {
+        method: 'DELETE',
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        alert("Product deleted successfully!");
+        fetchProducts();
+      } else {
+        alert(data.error || "Failed to delete product");
+      }
+    } catch (error) {
+      console.error("Delete error:", error);
+      alert("Something went wrong!");
+    }
+  };
+
+  // Open Edit Modal with Sanitized ID
+  const handleEditClick = (product) => {
+    const sanitizedProduct = {
+      ...product,
+      _id: product._id ? product._id.toString() : product.id
+    };
+    setProductToEdit(sanitizedProduct);
+    setIsEditModalOpen(true);
   };
 
   const categories = ['All', 'Formal & Casual', 'Winter Collection', 'Streetwear', 'Casual Wear'];
 
   return (
-    <div className="min-h-screen bg-slate-50 py-6 px-3 sm:px-6 lg:px-8 font-sans">
+    <div className="min-h-screen bg-slate-50 p-3 sm:p-6 font-sans">
       <div className="max-w-7xl mx-auto space-y-5">
         
-        {/* Top Controls Bar */}
+        {/* Top Header & Add Button */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 sm:p-6 rounded-2xl border border-slate-200/80 shadow-sm">
+          <div>
+            <h1 className="text-lg sm:text-2xl font-black text-slate-900 flex items-center gap-2">
+              <PackageCheck className="w-6 h-6 text-purple-600" />
+              <span>Men's Collection Admin</span>
+            </h1>
+            <p className="text-xs text-slate-500 font-medium mt-1">
+              Manage inventory, add new items, and edit details for Men's collection.
+            </p>
+          </div>
+
+          <button
+            onClick={() => {
+              setFormData({});
+              setIsAddModalOpen(true);
+            }}
+            className="flex items-center justify-center gap-2 bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600 text-white font-black text-xs px-5 py-3 rounded-xl shadow-lg shadow-purple-500/20 transition-all cursor-pointer shrink-0"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add New Product</span>
+          </button>
+        </div>
+
+        {/* Filter, Search & Sorting Controls Bar */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 shadow-sm">
+          
           <div className="flex items-center gap-2 overflow-x-auto pb-1 lg:pb-0 scrollbar-none shrink-0">
             {categories.map((cat) => (
               <button
@@ -218,7 +167,7 @@ const ManCollectionUser = ({ currentUser }) => {
                   placeholder="Search products..."
                   value={searchInput}
                   onChange={(e) => setSearchInput(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-xs py-2 pl-8 pr-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                  className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-xs py-2 pl-8 pr-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/50 font-medium"
                 />
                 <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
               </div>
@@ -246,19 +195,16 @@ const ManCollectionUser = ({ currentUser }) => {
         {loading ? (
           <div className="flex flex-col items-center justify-center min-h-[300px] gap-2">
             <Loader2 className="w-8 h-8 text-purple-600 animate-spin" />
-            <p className="text-xs text-slate-500 font-bold">Loading collection...</p>
+            <p className="text-xs text-slate-500 font-bold">Loading inventory...</p>
           </div>
         ) : products.length === 0 ? (
           <div className="text-center py-12 bg-white rounded-3xl border border-slate-200/80">
-            <p className="text-sm font-bold text-slate-600">No products found!</p>
+            <p className="text-sm font-bold text-slate-600">No products found in database!</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
             {products.map((product) => {
               const productId = product._id;
-              const isWishlisted = wishlistProductIds.includes(productId.toString());
-              const isInCart = cartProductIds.includes(productId.toString());
-
               const discountPercent = product.discountPrice > product.price 
                 ? Math.round(((product.discountPrice - product.price) / product.discountPrice) * 100) 
                 : 0;
@@ -282,19 +228,13 @@ const ManCollectionUser = ({ currentUser }) => {
                       {product.category}
                     </span>
 
-                    {/* Wishlist / Love Button */}
+                    {/* Quick Preview Button */}
                     <button 
-                      onClick={() => toggleWishlist(product)} 
-                      className={`absolute top-2 right-2 sm:top-3 sm:right-3 p-2 rounded-full backdrop-blur-md transition-all shadow-sm cursor-pointer ${
-                        isWishlisted ? 'bg-red-500 text-white' : 'bg-white/80 text-slate-700 hover:text-red-500'
-                      }`}
+                      onClick={() => setQuickViewProduct(product)} 
+                      className="absolute top-2 right-2 sm:top-3 sm:right-3 p-2 bg-white/80 backdrop-blur-md text-slate-700 hover:text-purple-600 rounded-full transition-all shadow-sm cursor-pointer"
+                      title="Quick Preview"
                     >
-                      <Heart className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isWishlisted ? 'fill-white' : ''}`} />
-                    </button>
-
-                    <button onClick={() => setQuickViewProduct(product)} className="absolute inset-x-3 bottom-12 py-2 bg-white/90 backdrop-blur-md text-slate-900 font-extrabold text-[11px] rounded-xl shadow-lg opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0 flex items-center justify-center gap-1.5 cursor-pointer">
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>Quick View</span>
+                      <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     </button>
                   </div>
 
@@ -310,9 +250,7 @@ const ManCollectionUser = ({ currentUser }) => {
                         </div>
                       </div>
 
-                      {/* প্রাইস এবং অ্যাভেইলেবল সাইজ পাশাপাশি সেকশন */}
                       <div className="flex items-center justify-between gap-2 mt-2">
-                        {/* Price Area */}
                         <div className="flex items-center gap-1.5 shrink-0">
                           <span className="text-xs sm:text-base font-black text-purple-600">
                             ৳{Number(product.price).toLocaleString()}
@@ -324,7 +262,6 @@ const ManCollectionUser = ({ currentUser }) => {
                           )}
                         </div>
 
-                        {/* Available Sizes */}
                         <div className="flex items-center gap-1 flex-wrap justify-end">
                           {availableSizes.map((sz) => (
                             <span 
@@ -336,27 +273,28 @@ const ManCollectionUser = ({ currentUser }) => {
                           ))}
                         </div>
                       </div>
-
+                      
+                      <div className="mt-2 text-[11px] text-slate-500 font-semibold flex items-center justify-between">
+                        <span>Stock Quantity:</span>
+                        <span className="text-slate-900 font-bold">{product.stock || 0} pcs</span>
+                      </div>
                     </div>
 
+                    {/* Admin Action Buttons */}
                     <div className="mt-3 pt-3 border-t border-slate-100 grid grid-cols-2 gap-1.5">
                       <button 
-                        onClick={() => handleAddToCart(product)} 
-                        className={`flex items-center justify-center gap-1 font-bold text-[10px] sm:text-xs py-2 rounded-xl transition-all cursor-pointer ${
-                          isInCart 
-                            ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm' 
-                            : 'bg-slate-100 hover:bg-slate-200 text-slate-900'
-                        }`}
+                        onClick={() => handleEditClick(product)} 
+                        className="flex items-center justify-center gap-1 bg-slate-100 hover:bg-purple-50 text-slate-700 hover:text-purple-600 font-bold text-[10px] sm:text-xs py-2 rounded-xl transition-all cursor-pointer"
                       >
-                        {isInCart ? <Check className="w-3.5 h-3.5" /> : <ShoppingBag className="w-3.5 h-3.5" />}
-                        <span>{isInCart ? 'Added in Bag' : 'Add Bag'}</span>
+                        <Edit3 className="w-3.5 h-3.5" />
+                        <span>Edit</span>
                       </button>
                       <button 
-                        onClick={() => handleOpenBuyModal(product)} 
-                        className="flex items-center justify-center gap-1 bg-purple-600 hover:bg-purple-700 text-white font-bold text-[10px] sm:text-xs py-2 rounded-xl transition-all shadow-sm cursor-pointer"
+                        onClick={() => handleDeleteProduct(productId)} 
+                        className="flex items-center justify-center gap-1 bg-red-50 hover:bg-red-100 text-red-600 font-bold text-[10px] sm:text-xs py-2 rounded-xl transition-all cursor-pointer"
                       >
-                        <Zap className="w-3.5 h-3.5 fill-white" />
-                        <span>Buy Now</span>
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Delete</span>
                       </button>
                     </div>
                   </div>
@@ -366,20 +304,32 @@ const ManCollectionUser = ({ currentUser }) => {
           </div>
         )}
 
-        {/* Quick View Details Modal Component */}
-        <MenDetailsButtonModal 
+        {/* Add Product Modal (Man) */}
+        <ManProductAddModal
+          isAddModalOpen={isAddModalOpen}
+          setIsAddModalOpen={setIsAddModalOpen}
+          formData={formData}
+          setFormData={setFormData}
+          onProductAdded={fetchProducts}
+        />
+
+        {/* Edit Product Modal (Man) - Conditionally Rendered with Key */}
+        {isEditModalOpen && productToEdit && (
+          <AdminEditProductMan
+            key={productToEdit._id || 'edit-modal'}
+            isEditModalOpen={isEditModalOpen}
+            setIsEditModalOpen={setIsEditModalOpen}
+            productToEdit={productToEdit}
+            onProductUpdated={fetchProducts}
+          />
+        )}
+
+        {/* Quick View Details Modal */}
+        <MenDetailsButtonModal
           isOpen={Boolean(quickViewProduct)}
           onClose={() => setQuickViewProduct(null)}
           product={quickViewProduct}
-          onOpenBuyModal={(prod) => handleOpenBuyModal(prod)}
-        />
-
-        {/* Buy Now / Checkout Modal Component */}
-        <MenOrderButtonModal 
-          isOpen={buyModalOpen}
-          onClose={() => setBuyModalOpen(false)}
-          selectedProduct={selectedProduct}
-          currentUser={currentUser}
+          onOpenBuyModal={() => {}} 
         />
 
       </div>
@@ -387,4 +337,4 @@ const ManCollectionUser = ({ currentUser }) => {
   );
 };
 
-export default ManCollectionUser;
+export default ManCollectionAdmin;
