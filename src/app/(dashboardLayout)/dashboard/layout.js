@@ -96,7 +96,7 @@ export default function DashboardLayout({ children }) {
   const navItems = isAdmin ? adminNavItems : userNavItems;
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row font-sans">
+    <div className="h-screen bg-slate-50 flex font-sans overflow-hidden">
       
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
@@ -108,13 +108,13 @@ export default function DashboardLayout({ children }) {
 
       {/* ================= SIDEBAR ================= */}
       <aside
-        className={`fixed md:static top-0 left-0 h-full w-64 bg-white/70 backdrop-blur-xl border-r border-slate-200/85 shadow-sm z-50 transition-transform duration-300 flex flex-col justify-between ${
+        className={`fixed md:relative top-0 left-0 h-full w-64 bg-white/80 backdrop-blur-xl border-r border-slate-200/85 shadow-sm z-40 transition-transform duration-300 flex flex-col justify-between shrink-0 overflow-y-auto ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
       >
         <div>
           {/* Back to Home Button & Mobile Close Button */}
-          <div className="flex items-center justify-between px-5 h-16 md:h-20 border-b border-slate-100">
+          <div className="flex items-center justify-between px-5 h-16 md:h-20 border-b border-slate-100 bg-white/90 sticky top-0 z-10">
             <Link
               href="/"
               className="flex items-center gap-2 text-xs font-bold text-slate-700 hover:text-purple-600 bg-slate-100/80 hover:bg-purple-50 px-3 py-2 rounded-xl transition-all border border-slate-200/60"
@@ -160,7 +160,7 @@ export default function DashboardLayout({ children }) {
         </div>
 
         {/* Sidebar Bottom / Logout */}
-        <div className="p-4 border-t border-slate-100">
+        <div className="p-4 border-t border-slate-100 bg-white/90 sticky bottom-0">
           <button 
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-bold text-red-500 hover:bg-red-50 rounded-xl transition-colors"
@@ -172,42 +172,21 @@ export default function DashboardLayout({ children }) {
       </aside>
 
       {/* ================= MAIN CONTENT AREA ================= */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         
-        {/* Top Header */}
-        <header className="h-16 md:h-20 bg-white/60 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="p-2 rounded-lg text-slate-600 hover:bg-slate-100 md:hidden"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
-            <h1 className="text-base sm:text-lg font-bold text-slate-800 capitalize">
-              {isAdmin ? 'Admin Dashboard' : 'User Dashboard'}
-            </h1>
-          </div>
+        {/* Mobile Menu Toggle Button (যদি ছোট স্ক্রিনে সাইডবার ওপেন করতে চান) */}
+        <div className="md:hidden flex items-center justify-between bg-white px-4 py-3 border-b border-slate-200 shrink-0">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="p-2 rounded-lg text-slate-600 hover:bg-slate-100"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+          <span className="text-xs font-bold text-slate-700">Dashboard</span>
+          <div className="w-7"></div>
+        </div>
 
-          {/* Profile Quick Pill with Dynamic User Info */}
-          <div className="flex items-center gap-3 bg-slate-100/80 px-3 py-1.5 rounded-full border border-slate-200/60">
-            {session?.user?.image ? (
-              <img 
-                src={session.user.image} 
-                alt="Profile" 
-                className="w-7 h-7 rounded-full object-cover shadow-sm border border-white" 
-              />
-            ) : (
-              <div className="w-7 h-7 bg-gradient-to-tr from-purple-600 to-blue-500 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-sm">
-                {session?.user?.name ? session.user.name.charAt(0).toUpperCase() : 'U'}
-              </div>
-            )}
-            <span className="text-xs font-bold text-slate-700 hidden sm:inline-block max-w-[120px] truncate">
-              {session?.user?.name || (isAdmin ? 'Admin' : 'My Account')}
-            </span>
-          </div>
-        </header>
-
-        {/* Page Body Content */}
+        {/* Page Body Content (Scrollable Independently) */}
         <main className="flex-1 p-4 sm:p-8 overflow-y-auto">
           {children}
         </main>
